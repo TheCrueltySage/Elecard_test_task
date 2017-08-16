@@ -123,73 +123,50 @@ int main(int argc, char *argv[])
 	    	vcoord[i] = new uint8_t[yuvlen/4];
 		t[i] = thread(rgb_to_yuv_thread,ref(bmpdata),rownum,threadrows,ycoord[i],ucoord[i],vcoord[i]);
 	    }
-	    //uint8_t* ibuffer = new uin8_t[(bmpdata.width*bmpdata.height)+((bmpdata.width*bmpdata.height)/2)];
+	    uint8_t* i_ybuffer = new uint8_t[bmpdata.width*bmpdata.height];
+	    unsigned long abspos = 0;
 	    for (unsigned int i=0;i<threadnum;i++)
 	    {
-		t[i].join();
-		//for (unsigned int j=0;j<yuvlen;j++)
-		//{
-		//    ibuffer[(i*bmpdata.width)+j]=ycoord[i][j];
-		//    if ((i%2==0)&&(j%2==0))
-		//    {
-		//        unsigned long vidpos = ((hoffset+i)/2)*(vwidth/2)+((woffset+j)/2); //width/2 because once we change rows, we have to add half of elements of previous row
-		//        unsigned long impos = (i/2)*(iwidth/2)+(j/2); //width/2 because once we change rows, we have to add half of elements of previous row
-		//        vbuffer[v_upos+vidpos]=i_ucoord[impos];
-		//        vbuffer[v_vpos+vidpos]=i_vcoord[impos];
-		//    }
-		//    ibuffer[(bmpdata.width+bmpdata.height)+((i/2)*(bmpdata.width/2))+(j/2)]=ycoord[i][j];
-		//    ibuffer[(i*bmpdata.width)+j]=ycoord[i][j];
-		//}
-	    }
-	    img_over_video(vbuffer,ycoord,ucoord,vcoord,yuvlen,width,height,bmpdata.width,bmpdata.height);
-	    for (unsigned int i=0;i<threadnum;i++)
-	    {
-		delete [] ycoord[i];
-	    	delete [] ucoord[i];
-	    	delete [] vcoord[i];
+	        t[i].join();
+	        for (unsigned int j=0;j<yuvlen;j++)
+	        {
+	            if (((i*yuvlen)+j)>=(bmpdata.width*bmpdata.height))
+	        	break;
+	            i_ybuffer[abspos]=ycoord[i][j];
+	            abspos++;
+	        }
+	        delete [] ycoord[i];
 	    }
 	    delete [] ycoord;
+	    uint8_t* i_ubuffer = new uint8_t[(bmpdata.width*bmpdata.height)/4];
+	    abspos = 0;
+	    for (unsigned int i=0;i<threadnum;i++)
+	    {
+	        for (unsigned int j=0;j<(yuvlen/4);j++)
+	        {
+	            if (((i*(yuvlen/4))+j)>=((bmpdata.width*bmpdata.height)/4))
+	        	break;
+	            i_ubuffer[abspos]=ucoord[i][j];
+	            abspos++;
+	        }
+	    	delete [] ucoord[i];
+	    }
 	    delete [] ucoord;
+	    uint8_t* i_vbuffer = new uint8_t[(bmpdata.width*bmpdata.height)/4];
+	    abspos = 0;
+	    for (unsigned int i=0;i<threadnum;i++)
+	    {
+	        for (unsigned int j=0;j<(yuvlen/4);j++)
+	        {
+	            if (((i*(yuvlen/4))+j)>=((bmpdata.width*bmpdata.height)/4))
+	        	break;
+	            i_vbuffer[abspos]=vcoord[i][j];
+	            abspos++;
+	        }
+	    	delete [] vcoord[i];
+	    }
 	    delete [] vcoord;
-	    //uint8_t* ibuffer = new uin8_t[(bmpdata.width*bmpdata.height)+((bmpdata.width*bmpdata.height)/2)];
-	    //unsigned long abspos = 0;
-	    //for (unsigned int i=0;i<threadnum;i++)
-	    //{
-	    //    t[i].join();
-	    //    for (unsigned int j=0;j<yuvlen;j++)
-	    //    {
-	    //        if (((i*yuvlen)+j)>=(bmpdata.width*bmpdata.height))
-	    //    	break;
-	    //        ibuffer[abspos]=ycoord[i][j];
-	    //        abspos++;
-	    //    }
-	    //    delete [] ycoord[i];
-	    //}
-	    //delete [] ycoord;
-	    //for (unsigned int i=0;i<threadnum;i++)
-	    //{
-	    //    for (unsigned int j=0;j<(yuvlen/4);j++)
-	    //    {
-	    //        if (((i*(yuvlen/4))+j)>=((bmpdata.width*bmpdata.height)/4))
-	    //    	break;
-	    //        ibuffer[abspos]=ucoord[i][j];
-	    //        abspos++;
-	    //    }
-	    //	delete [] ucoord[i];
-	    //}
-	    //delete [] ucoord;
-	    //for (unsigned int i=0;i<threadnum;i++)
-	    //{
-	    //    for (unsigned int j=0;j<(yuvlen/4);j++)
-	    //    {
-	    //        if (((i*(yuvlen/4))+j)>=((bmpdata.width*bmpdata.height)/4))
-	    //    	break;
-	    //        ibuffer[abspos]=vcoord[i][j];
-	    //        abspos++;
-	    //    }
-	    //	delete [] vcoord[i];
-	    //}
-	    //delete [] vcoord;
+	    img_over_video(vbuffer,i_ybuffer,i_ubuffer,i_vbuffer,size,width,height,bmpdata.width,bmpdata.height);
 	}
 	if (render_flag)
 	{
@@ -227,3 +204,16 @@ void help()
         "-F | --framerate	Framerate of input video in frames per second" << endl <<
         "-r | --render         	Open a separate window and render the resulting video to it" << endl;
 }
+	    //for (unsigned int i=0;i<threadnum;i++)
+	    //{
+	    //    t[i].join();
+	    //}
+	    //for (unsigned int i=0;i<threadnum;i++)
+	    //{
+	    //    delete [] ycoord[i];
+	    //	delete [] ucoord[i];
+	    //	delete [] vcoord[i];
+	    //}
+	    //delete [] ycoord;
+	    //delete [] ucoord;
+	    //delete [] vcoord;
