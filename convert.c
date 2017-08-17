@@ -64,46 +64,6 @@ void rgb_to_yuv_simple (unsigned long pixelnum, unsigned int width, uint8_t* red
     }
 }
 
-////Non-vector conversion from RGB to YUV, compatible with threads.
-//void rgb_to_yuv_vector (unsigned long pixelnum, unsigned int width, uint8_t* red, uint8_t* green, uint8_t* blue, uint8_t* ycoord, uint8_t* ucoord, uint8_t* vcoord)
-//{
-//    const int16_t ycoeff[3] = { 66, 129, 25 };
-//    const int16_t ucoeff[3] = { -38, -74, 112 };
-//    const int16_t vcoeff[3] = { 112, -94, -18 };
-//    unsigned int offset = 0; //which position on the row we're on; assuming we begin from start of row
-//    unsigned int row = 0; //which row we're in; assuming we begin from an even row (if we count from 0)
-//    for (unsigned long i=0;i<pixelnum;i++)
-//    {
-//	int16_t temp = ((ycoeff[0]*red[i]+ycoeff[1]*green[i]+ycoeff[2]*blue[i]+128)>>8);
-//	ycoord[i]=clip(temp,0,255);
-//	//U and V only get written once for every 4 pixels
-//	if ((offset%2==0)&&(row%2==0))
-//	{
-//	    int arrpos = (row/2)*(width/2)+(offset/2); //width/2 because once we change rows, we have to add half of elements of previous row
-//	    temp =ucoeff[2]*blue[i];
-//	    temp+=ucoeff[0]*red[i];
-//	    temp+=ucoeff[1]*green[i];
-//	    temp+=128;
-//	    temp=temp>>8;
-//	    temp+=128;
-//	    ucoord[arrpos]=clip(temp,0,255);
-//	    temp =vcoeff[0]*red[i];
-//	    temp+=vcoeff[1]*green[i];
-//	    temp+=vcoeff[2]*blue[i];
-//	    temp+=128;
-//	    temp=temp>>8;
-//	    temp+=128;
-//	    vcoord[arrpos]=clip(temp,0,255);
-//	}
-//	offset++;
-//	if (offset >= width)
-//	{
-//	    offset = 0;
-//	    row++;
-//	}
-//    }
-//}
-
 //Vector conversion from RGB to YUV, compatible with threads.
 //Written in SSE2.
 void rgb_to_yuv_vector (unsigned long pixelnum, unsigned int width, uint8_t* red, uint8_t* green, uint8_t* blue, uint8_t* ycoord, uint8_t* ucoord, uint8_t* vcoord)
@@ -121,6 +81,8 @@ void rgb_to_yuv_vector (unsigned long pixelnum, unsigned int width, uint8_t* red
 	{
 	    int arrpos = (i/2)*(width/2)+(j/2);
 
+	    //Calculating Y.
+	    //Loading data.
 	    rvec = _mm_loadu_si128(reinterpret_cast<const __m128i*>(&red[curpos]));
 	    gvec = _mm_loadu_si128(reinterpret_cast<const __m128i*>(&green[curpos]));
 	    bvec = _mm_loadu_si128(reinterpret_cast<const __m128i*>(&blue[curpos]));
@@ -128,6 +90,10 @@ void rgb_to_yuv_vector (unsigned long pixelnum, unsigned int width, uint8_t* red
 	    gcoeffvec = _mm_set1_epi16(ycoeff[1]);
 	    bcoeffvec = _mm_set1_epi16(ycoeff[2]);
 
+	    //Splitting Y into even and odd parts through some bitshifts. They will be handled separately.
+	    //We need that since SIMD instructions mostly don't concern themselves with 8-bit integers. So we need to pretend we're 16-bit.
+	    //That's actually pretty handy for multiplication purposes.
+	    //Also handy in that we actually need odd parts only to calculate U and V.
 	    __m128i rvec_e = _mm_srli_epi16(rvec,8);
 	    __m128i gvec_e = _mm_srli_epi16(gvec,8);
 	    __m128i bvec_e = _mm_srli_epi16(bvec,8);
@@ -135,6 +101,7 @@ void rgb_to_yuv_vector (unsigned long pixelnum, unsigned int width, uint8_t* red
 	    __m128i gvec_o = _mm_srli_epi16(_mm_slli_epi16(gvec,8),8);
 	    __m128i bvec_o = _mm_srli_epi16(_mm_slli_epi16(bvec,8),8);
 
+	    //Multiplication results for RGB vectors.
 	    __m128i rvec_er = _mm_mullo_epi16(rvec_e,rcoeffvec);
 	    __m128i gvec_er = _mm_mullo_epi16(gvec_e,gcoeffvec);
 	    __m128i bvec_er = _mm_mullo_epi16(bvec_e,bcoeffvec);
@@ -142,25 +109,36 @@ void rgb_to_yuv_vector (unsigned long pixelnum, unsigned int width, uint8_t* red
 	    __m128i gvec_or = _mm_mullo_epi16(gvec_o,gcoeffvec);
 	    __m128i bvec_or = _mm_mullo_epi16(bvec_o,bcoeffvec);
 
+	    //Adding up RGB vectors, then 128 to all elements, then bitshifting to the right by 8.
+	    //Make sure unsigned functions are used. Otherwise there will be loss of data due to buffer overflow.
 	    __m128i e_result = _mm_srli_epi16(_mm_adds_epu16(_mm_adds_epu16(_mm_adds_epu16(rvec_er,gvec_er),bvec_er),offcoeffvec),8);
 	    __m128i o_result = _mm_srli_epi16(_mm_adds_epu16(_mm_adds_epu16(_mm_adds_epu16(rvec_or,gvec_or),bvec_or),offcoeffvec),8);
 
+	    //Merging the vectors into one vector through some bitshifts and "or" operation. Afterwards, storing.
 	    yvec = _mm_or_si128(_mm_slli_epi16(e_result,8), _mm_srli_epi16(_mm_slli_epi16(o_result,8),8));
 	    _mm_storeu_si128(reinterpret_cast<__m128i*>(&ycoord[curpos]),yvec);
 
 
+	    //Calculating U.
 	    rcoeffvec = _mm_set1_epi16(ucoeff[0]);
 	    gcoeffvec = _mm_set1_epi16(ucoeff[1]);
 	    bcoeffvec = _mm_set1_epi16(ucoeff[2]);
 
+	    //We only need to multiply odd RGB parts here.
 	    __m128i rvec_u = _mm_mullo_epi16(rvec_o,rcoeffvec);
 	    __m128i gvec_u = _mm_mullo_epi16(gvec_o,gcoeffvec);
 	    __m128i bvec_u = _mm_mullo_epi16(bvec_o,bcoeffvec);
 
+	    //Adding up vectors.
+	    //Make sure signed function are used here, otherwise there will be loss of data due to buffer underflow,
+	    //since U and V values are expected to become negative during calculations.
 	    __m128i u_result = _mm_adds_epi16(_mm_srai_epi16(_mm_adds_epi16(_mm_adds_epi16(_mm_adds_epi16(bvec_u,gvec_u),rvec_u),offcoeffvec),8),offcoeffvec);
+	    //Packing the answer into a 16-bit vector by an instruction that is pretty much designed to do just that. Afterwards, storing the lower half,
+	    //pretending to be a 64-bit integer.
 	    uvec = _mm_packus_epi16(u_result,u_result);
 	    _mm_storel_epi64(reinterpret_cast<__m128i*>(&ucoord[arrpos]),uvec);
 
+	    //Calculating V. Analogous to U.
 	    rcoeffvec = _mm_set1_epi16(vcoeff[0]);
 	    gcoeffvec = _mm_set1_epi16(vcoeff[1]);
 	    bcoeffvec = _mm_set1_epi16(vcoeff[2]);
@@ -169,16 +147,13 @@ void rgb_to_yuv_vector (unsigned long pixelnum, unsigned int width, uint8_t* red
 	    __m128i gvec_v = _mm_mullo_epi16(gvec_o,gcoeffvec);
 	    __m128i bvec_v = _mm_mullo_epi16(bvec_o,bcoeffvec);
 
-	    //__m128i v_result = _mm_adds_epi16(_mm_srai_epi16(_mm_adds_epi16(_mm_adds_epi16(_mm_adds_epi16(bvec_v,gvec_v),rvec_v),offcoeffvec),8),offcoeffvec);
-	    __m128i v_result = _mm_adds_epi16(bvec_v,gvec_v);
-	    v_result = _mm_adds_epi16(v_result,rvec_v);
-	    v_result = _mm_adds_epi16(v_result,offcoeffvec);
-	    v_result = _mm_srai_epi16(v_result,8);
-	    v_result = _mm_adds_epi16(v_result,offcoeffvec);
+	    //Remember to use signed functions here.
+	    __m128i v_result = _mm_adds_epi16(_mm_srai_epi16(_mm_adds_epi16(_mm_adds_epi16(_mm_adds_epi16(bvec_v,gvec_v),rvec_v),offcoeffvec),8),offcoeffvec);
 	    vvec = _mm_packus_epi16(v_result,v_result);
 	    _mm_storel_epi64(reinterpret_cast<__m128i*>(&vcoord[arrpos]),vvec);
 
 	    curpos +=16;
+	    //If width is not divisible by 32 and we reached the last contigous 16-bit block in the row, calculating the rest of the row through normal methods.
 	    if ((j+32)>width)
 	    {
 		const float ytemp[3] = { 0.299, 0.587, 0.114 };
@@ -199,8 +174,10 @@ void rgb_to_yuv_vector (unsigned long pixelnum, unsigned int width, uint8_t* red
 		}
 	    }
 	}
+	//If we were given an uneven number of rows and we reached the end, quit.
 	if ((i+1)>=height)
 	    break;
+	//Second row, only calculating Y here. Analogous to the first row.
 	curpos = (i+1)*width;
 	for (unsigned int j=0;j<width;j+=16)
 	{
@@ -225,8 +202,9 @@ void rgb_to_yuv_vector (unsigned long pixelnum, unsigned int width, uint8_t* red
 	    __m128i bvec_er = _mm_mullo_epi16(bvec_e,bcoeffvec);
 	    __m128i bvec_or = _mm_mullo_epi16(bvec_o,bcoeffvec);
 
-	    __m128i e_result = _mm_srli_epi16(_mm_adds_epi16(_mm_adds_epi16(_mm_adds_epi16(rvec_er,gvec_er),bvec_er),offcoeffvec),8);
-	    __m128i o_result = _mm_srli_epi16(_mm_adds_epi16(_mm_adds_epi16(_mm_adds_epi16(rvec_or,gvec_or),bvec_or),offcoeffvec),8);
+	    //Remember to use unsigned functions here.
+	    __m128i e_result = _mm_srli_epi16(_mm_adds_epu16(_mm_adds_epu16(_mm_adds_epu16(rvec_er,gvec_er),bvec_er),offcoeffvec),8);
+	    __m128i o_result = _mm_srli_epi16(_mm_adds_epu16(_mm_adds_epu16(_mm_adds_epu16(rvec_or,gvec_or),bvec_or),offcoeffvec),8);
 
 	    yvec = _mm_or_si128(_mm_slli_epi16(e_result,8), o_result);
 	    _mm_storeu_si128(reinterpret_cast<__m128i*>(&ycoord[curpos]),yvec);
