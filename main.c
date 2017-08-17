@@ -17,25 +17,27 @@ int main(int argc, char *argv[])
 {
     int c;
     string input_filename, image_filename, output_filename = "";
-    unsigned int width = 0, height = 0, frames = 0;
-    static int render_flag = 0;
+    //unsigned int width = 0, height = 0, frames = 0;
+    //static int render_flag = 0;
+    unsigned int width = 0, height = 0;
 
     while (1)
     {
 	static struct option long_options[] =
 	{
-	    {"render",		no_argument,		    &render_flag, 1},
+	    //{"render",		no_argument,		    &render_flag, 1},
 	    {"input-video",	required_argument,	    0, 'i'},
 	    {"appended-image",	required_argument,	    0, 'a'},
 	    {"output",		required_argument,	    0, 'o'},
 	    {"width",		required_argument,	    0, 'W'},
 	    {"height",		required_argument,	    0, 'H'},
-	    {"framerate",	required_argument,	    0, 'F'},
+	    //{"framerate",	required_argument,	    0, 'F'},
 	    {"help",		no_argument,		    0, 'h'}
 	};
 
 	int index = 0;
-	c = getopt_long (argc, argv, "i:a:o:W:H:F:h", long_options, &index);
+	//c = getopt_long (argc, argv, "i:a:o:W:H:F:h", long_options, &index);
+	c = getopt_long (argc, argv, "i:a:o:W:H:h", long_options, &index);
 
 	if (c==-1)
 	{
@@ -99,7 +101,7 @@ int main(int argc, char *argv[])
 		cerr << "Error: must define video dimensions to merge with image" << endl;
 		return 0;
 	    }
-	    if ((bmpdata.height<height)||(bmpdata.width<width))
+	    if ((height<bmpdata.height)||(width<bmpdata.width))
 	    {
 		cerr << "Error: image must be smaller in dimensions than video" << endl;
 		return 0;
@@ -107,8 +109,10 @@ int main(int argc, char *argv[])
 	    unsigned int threadnum = thread::hardware_concurrency();
 	    if (threadnum==0)
 		threadnum=4;
+	    if (threadnum>bmpdata.height)
+		threadnum=bmpdata.height;
 	    thread t[threadnum];
-	    unsigned int threadrows = ceil(bmpdata.height/threadnum);
+	    unsigned int threadrows = ceil(static_cast<float>(bmpdata.height)/static_cast<float>(threadnum));
 	    if (threadrows%2==1)
 		threadrows++;
 	    uint8_t** ycoord = new uint8_t*[threadnum];
@@ -121,13 +125,15 @@ int main(int argc, char *argv[])
 		ycoord[i] = new uint8_t[yuvlen];
 	    	ucoord[i] = new uint8_t[yuvlen/4];
 	    	vcoord[i] = new uint8_t[yuvlen/4];
-		t[i] = thread(rgb_to_yuv_thread,ref(bmpdata),rownum,threadrows,ycoord[i],ucoord[i],vcoord[i]);
+		if (rownum<bmpdata.height)
+		    t[i] = thread(rgb_to_yuv_thread,ref(bmpdata),rownum,threadrows,ycoord[i],ucoord[i],vcoord[i]);
 	    }
 	    uint8_t* i_ybuffer = new uint8_t[bmpdata.width*bmpdata.height];
 	    unsigned long abspos = 0;
 	    for (unsigned int i=0;i<threadnum;i++)
 	    {
-	        t[i].join();
+	        if (t[i].joinable())
+	            t[i].join();
 	        for (unsigned int j=0;j<yuvlen;j++)
 	        {
 	            if (((i*yuvlen)+j)>=(bmpdata.width*bmpdata.height))
@@ -166,17 +172,20 @@ int main(int argc, char *argv[])
 	    	delete [] vcoord[i];
 	    }
 	    delete [] vcoord;
-	    img_over_video(vbuffer,i_ybuffer,i_ubuffer,i_vbuffer,size,width,height,bmpdata.width,bmpdata.height);
+	    for (unsigned int i=0;i<threadnum;i++)
+	        t[i] = thread(img_over_video_thread,vbuffer,i_ybuffer,i_ubuffer,i_vbuffer,size,threadnum,i,width,height,bmpdata.width,bmpdata.height);
+	    for (unsigned int i=0;i<threadnum;i++)
+		t[i].join();
 	}
-	if (render_flag)
-	{
-	    if (frames==0)
-	    {
-		cerr << "Error: must define video framerate to render" << endl;
-		return 0;
-	    }
-	    //will do later
-	}
+	//if (render_flag)
+	//{
+	//    if (frames==0)
+	//    {
+	//	cerr << "Error: must define video framerate to render" << endl;
+	//	return 0;
+	//    }
+	//    //will do later
+	//}
 	check = memory_to_file(output_filename, reinterpret_cast<char*>(vbuffer), size);
 	if (!check)
 	{
@@ -199,21 +208,8 @@ void help()
         "-i | --input-video	The path to input YUV420 video" << endl <<
         "-o | --output-video	Where to put the resulting video" << endl <<
         "-a | --appended-image	The path to the RGM BMP image to append to video" << endl <<
+        //"-r | --render        Open a separate window and render the resulting video to it" << endl <<
+        //"-F | --framerate	Framerate of input video in frames per second" << endl <<
         "-W | --width		Width of input video in pixels" << endl <<
-        "-H | --height		Height of input video in pixels" << endl <<
-        "-F | --framerate	Framerate of input video in frames per second" << endl <<
-        "-r | --render         	Open a separate window and render the resulting video to it" << endl;
+        "-H | --height		Height of input video in pixels" << endl;
 }
-	    //for (unsigned int i=0;i<threadnum;i++)
-	    //{
-	    //    t[i].join();
-	    //}
-	    //for (unsigned int i=0;i<threadnum;i++)
-	    //{
-	    //    delete [] ycoord[i];
-	    //	delete [] ucoord[i];
-	    //	delete [] vcoord[i];
-	    //}
-	    //delete [] ycoord;
-	    //delete [] ucoord;
-	    //delete [] vcoord;
