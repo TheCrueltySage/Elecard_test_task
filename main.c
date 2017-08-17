@@ -11,6 +11,7 @@
 #include "render.h"
 using namespace std;
 
+void img_overlay(uint8_t*, string, unsigned int, unsigned int, streamsize);
 void help();
 
 int main(int argc, char *argv[])
@@ -95,87 +96,7 @@ int main(int argc, char *argv[])
 	}
 	if (image_filename != "")
 	{
-	    bmp_holder bmpdata (image_filename);
-	    if ((width==0)||(height==0))
-	    {
-		cerr << "Error: must define video dimensions to merge with image" << endl;
-		return 0;
-	    }
-	    if ((height<bmpdata.height)||(width<bmpdata.width))
-	    {
-		cerr << "Error: image must be smaller in dimensions than video" << endl;
-		return 0;
-	    }
-	    unsigned int threadnum = thread::hardware_concurrency();
-	    if (threadnum==0)
-		threadnum=4;
-	    if (threadnum>bmpdata.height)
-		threadnum=bmpdata.height;
-	    thread t[threadnum];
-	    unsigned int threadrows = ceil(static_cast<float>(bmpdata.height)/static_cast<float>(threadnum));
-	    if (threadrows%2==1)
-		threadrows++;
-	    uint8_t** ycoord = new uint8_t*[threadnum];
-	    uint8_t** ucoord = new uint8_t*[threadnum];
-	    uint8_t** vcoord = new uint8_t*[threadnum];
-	    unsigned long yuvlen = threadrows*bmpdata.width;
-	    for (unsigned int i=0;i<threadnum;i++)
-	    {
-		unsigned int rownum = i*threadrows;
-		ycoord[i] = new uint8_t[yuvlen];
-	    	ucoord[i] = new uint8_t[yuvlen/4];
-	    	vcoord[i] = new uint8_t[yuvlen/4];
-		if (rownum<bmpdata.height)
-		    t[i] = thread(rgb_to_yuv_thread,ref(bmpdata),rownum,threadrows,ycoord[i],ucoord[i],vcoord[i]);
-	    }
-	    uint8_t* i_ybuffer = new uint8_t[bmpdata.width*bmpdata.height];
-	    unsigned long abspos = 0;
-	    for (unsigned int i=0;i<threadnum;i++)
-	    {
-	        if (t[i].joinable())
-	            t[i].join();
-	        for (unsigned int j=0;j<yuvlen;j++)
-	        {
-	            if (((i*yuvlen)+j)>=(bmpdata.width*bmpdata.height))
-	        	break;
-	            i_ybuffer[abspos]=ycoord[i][j];
-	            abspos++;
-	        }
-	        delete [] ycoord[i];
-	    }
-	    delete [] ycoord;
-	    uint8_t* i_ubuffer = new uint8_t[(bmpdata.width*bmpdata.height)/4];
-	    abspos = 0;
-	    for (unsigned int i=0;i<threadnum;i++)
-	    {
-	        for (unsigned int j=0;j<(yuvlen/4);j++)
-	        {
-	            if (((i*(yuvlen/4))+j)>=((bmpdata.width*bmpdata.height)/4))
-	        	break;
-	            i_ubuffer[abspos]=ucoord[i][j];
-	            abspos++;
-	        }
-	    	delete [] ucoord[i];
-	    }
-	    delete [] ucoord;
-	    uint8_t* i_vbuffer = new uint8_t[(bmpdata.width*bmpdata.height)/4];
-	    abspos = 0;
-	    for (unsigned int i=0;i<threadnum;i++)
-	    {
-	        for (unsigned int j=0;j<(yuvlen/4);j++)
-	        {
-	            if (((i*(yuvlen/4))+j)>=((bmpdata.width*bmpdata.height)/4))
-	        	break;
-	            i_vbuffer[abspos]=vcoord[i][j];
-	            abspos++;
-	        }
-	    	delete [] vcoord[i];
-	    }
-	    delete [] vcoord;
-	    for (unsigned int i=0;i<threadnum;i++)
-	        t[i] = thread(img_over_video_thread,vbuffer,i_ybuffer,i_ubuffer,i_vbuffer,size,threadnum,i,width,height,bmpdata.width,bmpdata.height);
-	    for (unsigned int i=0;i<threadnum;i++)
-		t[i].join();
+	    img_overlay(vbuffer, image_filename, width, height, size);
 	}
 	//if (render_flag)
 	//{
@@ -198,6 +119,94 @@ int main(int argc, char *argv[])
 	help();
 	return 0;
     }
+}
+
+void img_overlay(uint8_t* vbuffer, string image_filename, unsigned int width, unsigned int height, streamsize size)
+{
+    bmp_holder bmpdata (image_filename);
+    if ((width==0)||(height==0))
+    {
+        cerr << "Error: must define video dimensions to merge with image" << endl;
+        return;
+    }
+    if ((height<bmpdata.height)||(width<bmpdata.width))
+    {
+        cerr << "Error: image must be smaller in dimensions than video" << endl;
+        return;
+    }
+
+    unsigned int threadnum = thread::hardware_concurrency();
+    if (threadnum==0)
+        threadnum=4;
+    if (threadnum>bmpdata.height)
+        threadnum=bmpdata.height;
+    thread t[threadnum];
+    unsigned int threadrows = ceil(static_cast<float>(bmpdata.height)/static_cast<float>(threadnum));
+    if (threadrows%2==1)
+        threadrows++;
+    uint8_t** ycoord = new uint8_t*[threadnum];
+    uint8_t** ucoord = new uint8_t*[threadnum];
+    uint8_t** vcoord = new uint8_t*[threadnum];
+    unsigned long yuvlen = threadrows*bmpdata.width;
+    for (unsigned int i=0;i<threadnum;i++)
+    {
+        unsigned int rownum = i*threadrows;
+        ycoord[i] = new uint8_t[yuvlen];
+    	ucoord[i] = new uint8_t[yuvlen/4];
+    	vcoord[i] = new uint8_t[yuvlen/4];
+        if (rownum<bmpdata.height)
+            t[i] = thread(rgb_to_yuv_thread,ref(bmpdata),rownum,threadrows,ycoord[i],ucoord[i],vcoord[i]);
+    }
+
+    uint8_t* i_ybuffer = new uint8_t[bmpdata.width*bmpdata.height];
+    unsigned long abspos = 0;
+    for (unsigned int i=0;i<threadnum;i++)
+    {
+        if (t[i].joinable())
+            t[i].join();
+        for (unsigned int j=0;j<yuvlen;j++)
+        {
+            if (((i*yuvlen)+j)>=(bmpdata.width*bmpdata.height))
+        	break;
+            i_ybuffer[abspos]=ycoord[i][j];
+            abspos++;
+        }
+        delete [] ycoord[i];
+    }
+    delete [] ycoord;
+    uint8_t* i_ubuffer = new uint8_t[(bmpdata.width*bmpdata.height)/4];
+    abspos = 0;
+    for (unsigned int i=0;i<threadnum;i++)
+    {
+        for (unsigned int j=0;j<(yuvlen/4);j++)
+        {
+            if (((i*(yuvlen/4))+j)>=((bmpdata.width*bmpdata.height)/4))
+        	break;
+            i_ubuffer[abspos]=ucoord[i][j];
+            abspos++;
+        }
+    	delete [] ucoord[i];
+    }
+    delete [] ucoord;
+    uint8_t* i_vbuffer = new uint8_t[(bmpdata.width*bmpdata.height)/4];
+    abspos = 0;
+    for (unsigned int i=0;i<threadnum;i++)
+    {
+        for (unsigned int j=0;j<(yuvlen/4);j++)
+        {
+            if (((i*(yuvlen/4))+j)>=((bmpdata.width*bmpdata.height)/4))
+        	break;
+            i_vbuffer[abspos]=vcoord[i][j];
+            abspos++;
+        }
+    	delete [] vcoord[i];
+    }
+    delete [] vcoord;
+
+    for (unsigned int i=0;i<threadnum;i++)
+        t[i] = thread(img_over_video_thread,vbuffer,i_ybuffer,i_ubuffer,i_vbuffer,size,threadnum,i,width,height,bmpdata.width,bmpdata.height);
+    for (unsigned int i=0;i<threadnum;i++)
+        t[i].join();
 }
 
 void help()
