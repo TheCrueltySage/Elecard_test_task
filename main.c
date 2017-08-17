@@ -16,6 +16,7 @@ void help();
 
 int main(int argc, char *argv[])
 {
+    //Using CLI. See help() down below for details.
     int c;
     string input_filename, image_filename, output_filename = "";
     //unsigned int width = 0, height = 0, frames = 0;
@@ -98,6 +99,7 @@ int main(int argc, char *argv[])
 	{
 	    img_overlay(vbuffer, image_filename, width, height, size);
 	}
+	//Remains here for possible second bonus task.
 	//if (render_flag)
 	//{
 	//    if (frames==0)
@@ -123,6 +125,7 @@ int main(int argc, char *argv[])
 
 void img_overlay(uint8_t* vbuffer, string image_filename, unsigned int width, unsigned int height, streamsize size)
 {
+    //bmp_holder opens and parses a bmp file on its own in constructor.
     bmp_holder bmpdata (image_filename);
     if ((width==0)||(height==0))
     {
@@ -135,6 +138,9 @@ void img_overlay(uint8_t* vbuffer, string image_filename, unsigned int width, un
         return;
     }
 
+    //Setting up the threads
+    //We're using arrays of arrays instead of straightaway arrays because I feared false sharing.
+    //Didn't really profile it, though.
     unsigned int threadnum = thread::hardware_concurrency();
     if (threadnum==0)
         threadnum=4;
@@ -155,9 +161,13 @@ void img_overlay(uint8_t* vbuffer, string image_filename, unsigned int width, un
     	ucoord[i] = new uint8_t[yuvlen/4];
     	vcoord[i] = new uint8_t[yuvlen/4];
         if (rownum<bmpdata.height)
-            t[i] = thread(rgb_to_yuv_thread,ref(bmpdata),rownum,threadrows,ycoord[i],ucoord[i],vcoord[i]);
+            t[i] = thread(rgb_to_yuv_thread,ref(bmpdata),rownum,threadrows,ycoord[i],ucoord[i],vcoord[i]); //Actual function that does stuff
     }
 
+    //Copying the results into arrays from arrays of arrays we made for easier threading.
+    //Technically we can do without that, but it would make the inputs of video conversion function uglier (and they're ugly enough as it is).
+    //And from what I see, it doesn't eat much more memory than passing throught arrays of arrays (since we're deleting copied arrays right away), 
+    //and from profiling it seems it doesn't take much time either.
     uint8_t* i_ybuffer = new uint8_t[bmpdata.width*bmpdata.height];
     unsigned long abspos = 0;
     for (unsigned int i=0;i<threadnum;i++)
@@ -203,6 +213,10 @@ void img_overlay(uint8_t* vbuffer, string image_filename, unsigned int width, un
     }
     delete [] vcoord;
 
+    //Overlaying image on video via threads. Technically could be done without threads, but this is actually the bottleneck of the program,
+    //profiling shows it gives about 4 times the speedup, 
+    //and it was easy to write due to threads being set up earlier for RGB->YUV conversion.
+    //Also, since the buffer is by default pretty large, we're really unlikely to run into false sharing.
     for (unsigned int i=0;i<threadnum;i++)
         t[i] = thread(img_over_video_thread,vbuffer,i_ybuffer,i_ubuffer,i_vbuffer,size,threadnum,i,width,height,bmpdata.width,bmpdata.height);
     for (unsigned int i=0;i<threadnum;i++)

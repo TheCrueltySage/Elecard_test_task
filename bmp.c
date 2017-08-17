@@ -29,19 +29,27 @@ bmp_holder::bmp_holder(string const & filename)
     	if (!file_to_memory(filename,reinterpret_cast<char*>(&imageinfo),40,14)) //getting the second header
 	    throw;
     	//Checking for unexpected field values
+    	if (imageinfo.biBitCount == 16)
+    	{
+    	    throw "Error: 16-bit RGB not supported";
+    	}
     	if ((imageinfo.biBitCount != 24) && (imageinfo.biBitCount != 32))
     	{
-    	    throw "Error: BMP file not RGB; conversion for different color formats not implemented";
+    	    throw "Error: BMP file not RGB; conversion for different color formats not supported";
     	}
     	if (imageinfo.biCompression != 0)
     	{
-    	    throw "Error: compressed file, but decompression not implemented";
+    	    throw "Error: compressed file, but decompression not supported";
     	}
+	//The size of one row in bmp file. Formula taken straight from Microsoft.
     	rgbsize = (((imageinfo.biBitCount)*(imageinfo.biWidth)+31)/32)*abs(imageinfo.biHeight)*4;
     	rgbdata = new uint8_t[rgbsize];
     	if (!file_to_memory(filename,reinterpret_cast<char*>(rgbdata),rgbsize,fileinfo.bfOffBytes)) //getting the bitmap data
 	    throw;
+	//Copying variables so that users don't have to wade through fileheader structs for simple information.
 	width = imageinfo.biWidth;
+	//Height can also be negative in some cases, and that means things about structure of BMP.
+	//We hide that, since this variable is more for outside use than for parsing BMP files.
 	height = abs(imageinfo.biHeight);
     }
     catch (const char* msg)
@@ -59,6 +67,7 @@ bmp_holder::~bmp_holder()
     delete [] rgbdata;
 }
 
+//Puts one row of image into three arrays (red, green and blue). Accounts for line reversal in postitive-height BMP files.
 void bmp_holder::get_rgb_row(unsigned int number, uint8_t* red, uint8_t* green, uint8_t* blue)
 {
     unsigned int row_size = width; //How big the array we need to hold 
