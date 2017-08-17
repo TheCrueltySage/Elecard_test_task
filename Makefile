@@ -1,5 +1,5 @@
 CC=g++
-CFLAGS= -O0 -Wall -g
+CFLAGS= -O0 -msse2 -Wall -g
 OBJS = main.o fs.o bmp.o convert.o render.o
 LIBS = -lpthread
 PROG = yuv_and_rgb
