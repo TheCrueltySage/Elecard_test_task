@@ -111,8 +111,8 @@ void rgb_to_yuv_vector (unsigned long pixelnum, unsigned int width, uint8_t* red
 
 	    //Adding up RGB vectors, then 128 to all elements, then bitshifting to the right by 8.
 	    //Make sure unsigned functions are used. Otherwise there will be loss of data due to buffer overflow.
-	    __m128i e_result = _mm_srli_epi16(_mm_adds_epu16(_mm_adds_epu16(_mm_adds_epu16(rvec_er,gvec_er),bvec_er),offcoeffvec),8);
-	    __m128i o_result = _mm_srli_epi16(_mm_adds_epu16(_mm_adds_epu16(_mm_adds_epu16(rvec_or,gvec_or),bvec_or),offcoeffvec),8);
+	    __m128i e_result = _mm_adds_epu16(_mm_srli_epi16(_mm_adds_epu16(_mm_adds_epu16(_mm_adds_epu16(rvec_er,gvec_er),bvec_er),offcoeffvec),8),16);
+	    __m128i o_result = _mm_adds_epu16(_mm_srli_epi16(_mm_adds_epu16(_mm_adds_epu16(_mm_adds_epu16(rvec_or,gvec_or),bvec_or),offcoeffvec),8),16);
 
 	    //Merging the vectors into one vector through some bitshifts and "or" operation. Afterwards, storing.
 	    yvec = _mm_or_si128(_mm_slli_epi16(e_result,8), _mm_srli_epi16(_mm_slli_epi16(o_result,8),8));
