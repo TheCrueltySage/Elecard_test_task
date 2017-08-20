@@ -113,6 +113,7 @@ int main(int argc, char *argv[])
 	{
 	    std::cerr << "Error writing the output file." << std::endl;
 	}
+	delete [] vbuffer;
     }
     else
     {
