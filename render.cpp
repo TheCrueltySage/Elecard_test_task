@@ -1,8 +1,8 @@
 #include <cmath>
 #include <chrono>
 #include <thread>
-#include <GLEW/gl.h>
-#include <GLFW/glfw3.h>
+#include <vector>
+#include <GL/glew.h>
 #include "render.h"
 
 //Overlays image over video, supposed to be spawned in a thread.
@@ -103,7 +103,7 @@ void render_video(uint8_t* vbuffer, std::streamsize size, unsigned int framerate
     glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR,2);
     glfwWindowHint(GLFW_OPENGL_PROFILE,GLFW_OPENGL_CORE_PROFILE);
     glfwWindowHint(GLFW_OPENGL_FORWARD_COMPAT,GL_TRUE);
-    glfwWindowHint(GLFW_WINDOW_RESIZABLE,GL_FALSE);
+    glfwWindowHint(GLFW_RESIZABLE,GL_FALSE);
 
     GLFWwindow* window = glfwCreateWindow(width, height, "YUV video render", nullptr, nullptr);
     glfwMakeContextCurrent(window);
@@ -135,6 +135,10 @@ void render_video(uint8_t* vbuffer, std::streamsize size, unsigned int framerate
         uniform sampler2D vbuffer;
         void main()
         {
+            red = texture(ybuffer,TexCoord);
+            green = texture(ybuffer,TexCoord);
+            blue = texture(ybuffer,TexCoord);
+            endcolor = vector4(1.0,1.0,1.0,1.0);
         }
         )glsl";
 
@@ -147,7 +151,7 @@ void render_video(uint8_t* vbuffer, std::streamsize size, unsigned int framerate
     glBindVertexArray(vao);
 
     GLuint vbo;
-    glGenBuffers(1,$vbo);
+    glGenBuffers(1,&vbo);
 
     //Rectangle vertices
     GLfloat vertices[] = {
@@ -156,18 +160,70 @@ void render_video(uint8_t* vbuffer, std::streamsize size, unsigned int framerate
             1.0f,   1.0f,   1.0f,   0.0f,   //Top-right corner
             1.0f,   -1.0f,  1.0f,   1.0f,   //Bottom-right corner
             -1.0f,  -1.0f,  0.0f,   1.0f,   //Bottom-left corner
-    }
+    };
 
     glBindBuffer(GL_ARRAY_BUFFER,vbo);
     glBufferData(GL_ARRAY_BUFFER, sizeof(vertices), vertices, GL_STATIC_DRAW);
 
+    GLuint ebo;
+    glGenBuffers(1,&ebo);
+
+    //Rectangle draw order
+    GLuint elements[] = {
+        0,  1,  2,
+        2,  3,  0
+    };
+
+    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER,ebo);
+    glBufferData(GL_ELEMENT_ARRAY_BUFFER,sizeof(elements),elements,GL_STATIC_DRAW);
+
+    GLint success = 0;
+    GLint logsize = 0;
+
     GLuint vshader = glCreateShader(GL_VERTEX_SHADER);
     glShaderSource(vshader,1,&vertex_code,NULL);
     glCompileShader(vshader);
+    glGetShaderiv(vshader,GL_COMPILE_STATUS,&success);
+    if (success==GL_FALSE)
+    {
+        glGetShaderiv(vshader,GL_INFO_LOG_LENGTH,&logsize);
+        std::vector<GLchar> errorLog(logsize);
+        glGetShaderInfoLog(vshader,logsize,&logsize,&errorLog[0]);
+        for (auto i:errorLog)
+            std::cerr << *i;
+        cerr << end;;
+        glfwSetWindowShouldClose(window,GL_TRUE);
+        ithread.join();
+        glDeleteShader(vshader);
+        glDeleteBuffers(1,&ebo);
+        glDeleteBuffers(1,&vbo);
+        glDeleteVertexArrays(1,&vao);
+        glfwTerminate();
+        return;
+    }
 
     GLuint fshader = glCreateShader(GL_FRAGMENT_SHADER);
     glShaderSource(fshader,1,&fragment_code,NULL);
     glCompileShader(fshader);
+    glGetShaderiv(fshader,GL_COMPILE_STATUS,&success);
+    if (success==GL_FALSE)
+    {
+        glGetShaderiv(fshader,GL_INFO_LOG_LENGTH,&logsize);
+        std::vector<GLchar> errorLog(logsize);
+        glGetShaderInfoLog(fshader,logsize,&logsize,&errorLog[0]);
+        for (auto i:errorLog)
+            std::cerr << *i;
+        cerr << end;;
+        glfwSetWindowShouldClose(window,GL_TRUE);
+        ithread.join();
+        glDeleteShader(fshader);
+        glDeleteShader(vshader);
+        glDeleteBuffers(1,&ebo);
+        glDeleteBuffers(1,&vbo);
+        glDeleteVertexArrays(1,&vao);
+        glfwTerminate();
+        return;
+    }
 
     GLuint sprogram = glCreateProgram();
     glAttachShader(sprogram,vshader);
@@ -175,6 +231,26 @@ void render_video(uint8_t* vbuffer, std::streamsize size, unsigned int framerate
     glBindFragDataLocation(sprogram,0,"endcolor");
     glLinkProgram(sprogram);
     glUseProgram(sprogram);
+    glGetProgramiv(program,GL_LINK_STATUS,&success);
+    if (success==GL_FALSE)
+    {
+        glGetProgramiv(sprogram,GL_INFO_LOG_LENGTH,&logsize);
+        std::vector<GLchar> errorLog(logsize);
+        glGetProgramInfoLog(sprogram,logsize,&logsize,&errorLog[0]);
+        for (auto i:errorLog)
+            std::cerr << *i;
+        cerr << end;;
+        glfwSetWindowShouldClose(window,GL_TRUE);
+        ithread.join();
+        glDeleteProgram(sprogram);
+        glDeleteShader(fshader);
+        glDeleteShader(vshader);
+        glDeleteBuffers(1,&ebo);
+        glDeleteBuffers(1,&vbo);
+        glDeleteVertexArrays(1,&vao);
+        glfwTerminate();
+        return;
+    }
 
     GLint posattr = glGetAttribLocation(sprogram,"position");
     glEnableVertexAttribArray(posattr);
@@ -182,25 +258,99 @@ void render_video(uint8_t* vbuffer, std::streamsize size, unsigned int framerate
 
     GLint texattr = glGetAttribLocation(sprogram,"texcoord");
     glEnableVertexAttribArray(texattr);
-    glVertexAttribPointer(texattr,2,GL_FLOAT,GL_FALSE,4*sizeof(GLfloat),2*sizeof(GLfloat));
+    glVertexAttribPointer(texattr,2,GL_FLOAT,GL_FALSE,4*sizeof(GLfloat),reinterpret_cast<void*>(2*sizeof(GLfloat)));
 
-    for (unsigned long i=0;i<frames;i++)
+    GLuint pbo;
+    glGenBuffers(1,&pbo);
+
+    glBindBuffer(GL_PIXEL_UNPACK_BUFFER,pbo);
+    glBufferData(GL_PIXEL_UNPACK_BUFFER,size,vbuffer,GL_STATIC_DRAW);
+
+    glPixelStorei(GL_UNPACK_ALIGNMENT,1);
+
+    GLuint textures[3];
+    glGenTextures(3,textures);
+
+    glActiveTexture(GL_TEXTURE0);
+    glBindTexture(GL_TEXTURE_2D,textures[0]);
+    glUniform1i(glGetUniformLocation(sprogram,"ybuffer"),0);
+    glTexParameteri(GL_TEXTURE_2D,GL_TEXTURE_WRAP_S,GL_CLAMP_TO_BORDER);
+    glTexParameteri(GL_TEXTURE_2D,GL_TEXTURE_WRAP_T,GL_CLAMP_TO_BORDER);
+    glTexParameteri(GL_TEXTURE_2D,GL_TEXTURE_MIN_FILTER,GL_LINEAR);
+    glTexParameteri(GL_TEXTURE_2D,GL_TEXTURE_MAG_FILTER,GL_LINEAR);
+
+    glActiveTexture(GL_TEXTURE1);
+    glBindTexture(GL_TEXTURE_2D,textures[1]);
+    glUniform1i(glGetUniformLocation(sprogram,"ubuffer"),1);
+    glTexParameteri(GL_TEXTURE_2D,GL_TEXTURE_WRAP_S,GL_CLAMP_TO_BORDER);
+    glTexParameteri(GL_TEXTURE_2D,GL_TEXTURE_WRAP_T,GL_CLAMP_TO_BORDER);
+    glTexParameteri(GL_TEXTURE_2D,GL_TEXTURE_MIN_FILTER,GL_NEAREST);
+    glTexParameteri(GL_TEXTURE_2D,GL_TEXTURE_MAG_FILTER,GL_NEAREST);
+
+    glActiveTexture(GL_TEXTURE2);
+    glBindTexture(GL_TEXTURE_2D,textures[2]);
+    glUniform1i(glGetUniformLocation(sprogram,"vbuffer"),2);
+    glTexParameteri(GL_TEXTURE_2D,GL_TEXTURE_WRAP_S,GL_CLAMP_TO_BORDER);
+    glTexParameteri(GL_TEXTURE_2D,GL_TEXTURE_WRAP_T,GL_CLAMP_TO_BORDER);
+    glTexParameteri(GL_TEXTURE_2D,GL_TEXTURE_MIN_FILTER,GL_NEAREST);
+    glTexParameteri(GL_TEXTURE_2D,GL_TEXTURE_MAG_FILTER,GL_NEAREST);
+
+    glClearColor(0.0f,0.0f,0.0f,0.0f);
+    glClear(GL_COLOR_BUFFER_BIT);
+
+    double start_frame = glfwGetTime();
+    double finished_frame;
+    double elapsed_time;
+    yholder=0;
+    uholder=yholder+(width*height);
+    vholder=uholder+((width*height)/4);
+    //render_frame(window,yholder,uholder,vholder,width,height);
+    glActiveTexture(GL_TEXTURE0);
+    glTexImage2D(GL_TEXTURE_2D,0,GL_RED,width,height,0,GL_RED,GL_UNSIGNED_BYTE,yholder);
+    glActiveTexture(GL_TEXTURE1);
+    glTexImage2D(GL_TEXTURE_2D,0,GL_RED,width/2,height/2,0,GL_RED,GL_UNSIGNED_BYTE,uholder);
+    glActiveTexture(GL_TEXTURE2);
+    glTexImage2D(GL_TEXTURE_2D,0,GL_RED,width/2,height/2,0,GL_RED,GL_UNSIGNED_BYTE,vholder);
+    for (unsigned long i=1;i<frames;i++)
     {
-        double start_frame = glfwGetTime();
-        glfwSwapBuffers(window);
-        yholder=&vbuffer[framelen*i];
+        glDrawElements(GL_TRIANGLES,6,GL_UNSIGNED_INT,0);
+
+        yholder=framelen*i;
         uholder=yholder+(width*height);
         vholder=uholder+((width*height)/4);
-        //render_frame(window,yholder,uholder,vholder,width,height);
-        glFlush();
-        double finished_frame = glfwGetTime();
-        double elapsed_time = finished_time-start_time;
+        glActiveTexture(GL_TEXTURE0);
+        glTexImage2D(GL_TEXTURE_2D,0,GL_RED,width,height,0,GL_RED,GL_UNSIGNED_BYTE,yholder);
+        glActiveTexture(GL_TEXTURE1);
+        glTexImage2D(GL_TEXTURE_2D,0,GL_RED,width/2,height/2,0,GL_RED,GL_UNSIGNED_BYTE,uholder);
+        glActiveTexture(GL_TEXTURE2);
+        glTexImage2D(GL_TEXTURE_2D,0,GL_RED,width/2,height/2,0,GL_RED,GL_UNSIGNED_BYTE,vholder);
+
+        finished_frame = glfwGetTime();
+        elapsed_time = finished_frame-start_frame;
         if (elapsed_time<(1.0/framerate))
             std::this_thread::sleep_for(std::chrono::duration<double>((1.0/framerate)-elapsed_time));
-    }
 
-    glfwWindowShouldClose(window,GL_TRUE);
+        start_frame = glfwGetTime();
+
+        glfwSwapBuffers(window);
+    }
+    glDrawElements(GL_TRIANGLES,6,GL_UNSIGNED_INT,0);
+    finished_frame = glfwGetTime();
+    elapsed_time = finished_frame-start_frame;
+    if (elapsed_time<(1.0/framerate))
+        std::this_thread::sleep_for(std::chrono::duration<double>((1.0/framerate)-elapsed_time));
+
+    glfwSetWindowShouldClose(window,GL_TRUE);
     ithread.join();
+
+    glDeleteTextures(3,textures);
+    glDeleteProgram(sprogram);
+    glDeleteShader(fshader);
+    glDeleteShader(vshader);
+    glDeleteBuffers(1,&pbo);
+    glDeleteBuffers(1,&ebo);
+    glDeleteBuffers(1,&vbo);
+    glDeleteVertexArrays(1,&vao);
     glfwTerminate();
 }
 
