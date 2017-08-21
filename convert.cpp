@@ -8,13 +8,13 @@ int clip(int n, int lower, int upper) {
   return std::max(lower, std::min(n, upper));
 }
 
-//Specific function to set up program-specific requirements for RGB->YUV conversion in threads. Not designed to be reused.
-void rgb_to_yuv_thread (bmp_holder &bmpdata, unsigned int rownum, unsigned int dorows, uint8_t* ycoord, uint8_t* ucoord, uint8_t* vcoord)
+//Fetches data from bmp_holder object and calls the actual algorithm.
+//Compatible with threads, and mostly done for nice work with them. To work with it sequentially just don't pass the last two arguments in a call.
+//A program-specific function, not intended to be reused.
+void do_rgb_to_yuv (bmp_holder &bmpdata, uint8_t* red, uint8_t* green, uint8_t* blue, uint8_t* ycoord, uint8_t* ucoord, uint8_t* vcoord, unsigned int dorows, unsigned int rownum)
 {
-    unsigned long rgblen = dorows*bmpdata.width;
-    uint8_t *red = new uint8_t[rgblen];
-    uint8_t *green = new uint8_t[rgblen];
-    uint8_t *blue = new uint8_t[rgblen];
+    if (dorows==0)
+	dorows = bmpdata.height;
     unsigned int realdorows = dorows;
     for (unsigned int i=0;i<dorows;i++)
     {
@@ -30,9 +30,6 @@ void rgb_to_yuv_thread (bmp_holder &bmpdata, unsigned int rownum, unsigned int d
     #else
       rgb_to_yuv_simple(realdorows,bmpdata.width,red,green,blue,ycoord,ucoord,vcoord);
     #endif
-    delete [] red;
-    delete [] green;
-    delete [] blue;
 }
 
 //Non-vector conversion from RGB to YUV, compatible with threads.

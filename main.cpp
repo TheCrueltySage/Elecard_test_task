@@ -21,6 +21,7 @@ int main(int argc, char *argv[])
     //unsigned int width = 0, height = 0, frames = 0;
     //static int render_flag = 0;
     unsigned int width = 0, height = 0, threadnum = 0;
+    bool threadset = false;
 
     while (1)
     {
@@ -69,8 +70,9 @@ int main(int argc, char *argv[])
 	    case 'H':
 		height = atoi(optarg);
 		break;
-	    case 'o':
-		threadnum = optarg;
+	    case 't':
+		threadnum = atoi(optarg);
+		threadset = true;
 		break;
 	    case 'h':
 	    case '?':
@@ -84,7 +86,7 @@ int main(int argc, char *argv[])
 
     if (input_filename != "" && output_filename != "")
     {
-    	if (threadnum!=1)
+    	if (threadset!=true)
 	    threadnum = std::thread::hardware_concurrency();
 	std::streamsize size = get_size(input_filename);
 	if (size == -1)
@@ -129,6 +131,8 @@ int main(int argc, char *argv[])
     }
 }
 
+//Pretty much part of main, but put into function for readability.
+//Allocates dynamic memory since it needs it to be dynamic size. Make sure that it gets rid of it.
 void img_overlay(uint8_t* vbuffer, std::string image_filename, unsigned int width, unsigned int height, std::streamsize size, unsigned int threadnum)
 {
     //bmp_holder opens and parses a bmp file on its own in constructor.
@@ -144,6 +148,10 @@ void img_overlay(uint8_t* vbuffer, std::string image_filename, unsigned int widt
         return;
     }
 
+    //Allocating (requires dynamic size)
+    uint8_t* red = new uint8_t[bmpdata.width*bmpdata.height];
+    uint8_t* green = new uint8_t[bmpdata.width*bmpdata.height];
+    uint8_t* blue = new uint8_t[bmpdata.width*bmpdata.height];
     uint8_t* i_ybuffer = new uint8_t[bmpdata.width*bmpdata.height];
     uint8_t* i_ubuffer = new uint8_t[(bmpdata.width*bmpdata.height)/4];
     uint8_t* i_vbuffer = new uint8_t[(bmpdata.width*bmpdata.height)/4];
@@ -151,14 +159,14 @@ void img_overlay(uint8_t* vbuffer, std::string image_filename, unsigned int widt
     //Setting up the threads
     if (threadnum>bmpdata.height)
         threadnum=bmpdata.height;
-
     if ((threadnum==0)||(threadnum==1))
     {
-	rgb_to_yuv_thread(bmpdata,rownum,threadrows,ycoord,ucoord,vcoord);
+	do_rgb_to_yuv(bmpdata,red,green,blue,i_ybuffer,i_ubuffer,i_vbuffer);
     	img_over_video(vbuffer,i_ybuffer,i_ubuffer,i_vbuffer,size,width,height,bmpdata.width,bmpdata.height);
     }
     else
     {
+	//Allocating thread (need dynamic amount)
 	std::thread* t = new std::thread[threadnum];
 
     	unsigned int threadrows = std::ceil(static_cast<float>(bmpdata.height)/static_cast<float>(threadnum));
@@ -167,27 +175,37 @@ void img_overlay(uint8_t* vbuffer, std::string image_filename, unsigned int widt
 	for (unsigned int i=0;i<threadnum;i++)
     	{
     	    unsigned int rownum = i*threadrows;
-    	    ycoord = &i_ybuffer[rownum*bmpdata.width];
-    	    ucoord = &i_ubuffer[rownum*(bmpdata.width/4)];
-    	    vcoord = &i_vbuffer[rownum*(bmpdata.width/4)];
+    	    uint8_t* rcoord = &red[rownum*bmpdata.width];
+    	    uint8_t* gcoord = &green[rownum*bmpdata.width];
+    	    uint8_t* bcoord = &blue[rownum*bmpdata.width];
+    	    uint8_t* ycoord = &i_ybuffer[rownum*bmpdata.width];
+    	    uint8_t* ucoord = &i_ubuffer[rownum*(bmpdata.width/4)];
+    	    uint8_t* vcoord = &i_vbuffer[rownum*(bmpdata.width/4)];
     	    if (rownum<bmpdata.height)
-    	        t[i] = std::thread(rgb_to_yuv_thread,std::ref(bmpdata),rownum,threadrows,ycoord,ucoord,vcoord); //Actual function that does stuff
+    	        t[i] = std::thread(do_rgb_to_yuv,std::ref(bmpdata),rcoord,gcoord,bcoord,ycoord,ucoord,vcoord,threadrows,rownum); //Actual function that does stuff
     	}
+    	for (unsigned int i=0;i<threadnum;i++)
+    	    t[i].join();
 	//Overlaying image on video via threads. Technically could be done without threads, but this is actually the bottleneck of the program,
     	//profiling shows it gives about 4 times the speedup, 
     	//and it was easy to write due to threads being set up earlier for RGB->YUV conversion.
     	//Also, since the buffer is by default pretty large, we're really unlikely to run into false sharing.
     	for (unsigned int i=0;i<threadnum;i++)
-    	    t[i] = std::thread(img_over_video_thread,vbuffer,i_ybuffer,i_ubuffer,i_vbuffer,size,threadnum,i,width,height,bmpdata.width,bmpdata.height);
+    	    t[i] = std::thread(img_over_video,vbuffer,i_ybuffer,i_ubuffer,i_vbuffer,size,width,height,bmpdata.width,bmpdata.height,threadnum,i);
     	for (unsigned int i=0;i<threadnum;i++)
     	    t[i].join();
 
+	//Deallocating threads
 	delete [] t;
     }
 
+    //Deallocating memory that was allocated in this function
     delete [] i_ybuffer;
     delete [] i_ubuffer;
     delete [] i_vbuffer;
+    delete [] red;
+    delete [] green;
+    delete [] blue;
 }
 
 void help()
@@ -201,5 +219,6 @@ void help()
         //"-r | --render        Open a separate window and render the resulting video to it" << std::endl <<
         //"-F | --framerate	Framerate of input video in frames per second" << std::endl <<
         "-W | --width		Width of input video in pixels" << std::endl <<
-        "-H | --height		Height of input video in pixels" << std::endl;
+        "-H | --height		Height of input video in pixels" << std::endl <<
+        "-t | --threads		Force certain amount of threads used (default is dependent on your hardware configuration)" << std::endl;
 }
