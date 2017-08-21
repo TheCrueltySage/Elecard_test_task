@@ -1,8 +1,9 @@
+#include <iostream>
 #include <cmath>
 #include <chrono>
 #include <thread>
 #include <vector>
-#include <GL/glew.h>
+#include "gl_core_3_2.h"
 #include "render.h"
 
 //Overlays image over video, supposed to be spawned in a thread.
@@ -96,8 +97,9 @@ void img_over_frame (uint8_t* v_ybuffer, uint8_t* v_ubuffer, uint8_t* v_vbuffer,
     }
 }
 
-void render_video(uint8_t* vbuffer, std::streamsize size, unsigned int framerate, unsigned int width, unsigned int height)
+void init_window(uint8_t* vbuffer, std::streamsize size, unsigned int framerate, unsigned int width, unsigned int height)
 {
+    glfwSetErrorCallback(glfw_error_callback);
     glfwInit();
     glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR,3);
     glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR,2);
@@ -108,11 +110,29 @@ void render_video(uint8_t* vbuffer, std::streamsize size, unsigned int framerate
     GLFWwindow* window = glfwCreateWindow(width, height, "YUV video render", nullptr, nullptr);
     glfwMakeContextCurrent(window);
 
-    glewExperimental = GL_TRUE;
-    glewInit();
+    std::atomic<bool> rfinish;
+    rfinish = false;
+    std::thread rthread = std::thread(render_video_thread,window,vbuffer,size,framerate,width,height,std::ref(rfinish));
 
-    std::thread ithread = std::thread(render_window_input,window);
+    while (!glfwWindowShouldClose(window))
+    {
+        glfwWaitEvents();
+        if (glfwGetKey(window, GLFW_KEY_ESCAPE) == GLFW_PRESS)
+            return;
+    }
+    rfinish = true;
+    rthread.join();
+    glfwTerminate();
+}
 
+void glfw_error_callback(int error, const char* description)
+{
+    std::cerr << "Error code: " << error << std::endl << "Description: " << description << std::endl;
+    //abort();
+}
+
+void render_video_thread(GLFWwindow* window, uint8_t* vbuffer, std::streamsize size, unsigned int framerate, unsigned int width, unsigned int height, std::atomic<bool>& rfinish)
+{
     const GLchar* vertex_code = 
         R"glsl(
         #version 150 core
@@ -144,7 +164,7 @@ void render_video(uint8_t* vbuffer, std::streamsize size, unsigned int framerate
 
     unsigned long long framelen = width*height+((width*height)/2);
     unsigned long frames = size/framelen;
-    uint8_t *yholder,*uholder,*vholder;
+    unsigned long long yholder,uholder,vholder;
 
     GLuint vao;
     glGenVertexArrays(1,&vao);
@@ -181,6 +201,14 @@ void render_video(uint8_t* vbuffer, std::streamsize size, unsigned int framerate
     GLint logsize = 0;
 
     GLuint vshader = glCreateShader(GL_VERTEX_SHADER);
+    std::cerr << "Current window: " << window << std::endl;
+    std::cerr << "Current context: " << glfwGetCurrentContext() << std::endl;
+    GLenum error = glGetError();
+    if (error != GL_NO_ERROR)
+    {
+        std::cerr << "OpenGL Error: " << error << std::endl;
+        return;
+    }
     glShaderSource(vshader,1,&vertex_code,NULL);
     glCompileShader(vshader);
     glGetShaderiv(vshader,GL_COMPILE_STATUS,&success);
@@ -189,16 +217,15 @@ void render_video(uint8_t* vbuffer, std::streamsize size, unsigned int framerate
         glGetShaderiv(vshader,GL_INFO_LOG_LENGTH,&logsize);
         std::vector<GLchar> errorLog(logsize);
         glGetShaderInfoLog(vshader,logsize,&logsize,&errorLog[0]);
+        std::cerr << "Compilation error: ";
         for (auto i:errorLog)
-            std::cerr << *i;
-        cerr << end;;
-        glfwSetWindowShouldClose(window,GL_TRUE);
-        ithread.join();
+            std::cerr << i;
+        std::cerr << std::endl;
         glDeleteShader(vshader);
         glDeleteBuffers(1,&ebo);
         glDeleteBuffers(1,&vbo);
         glDeleteVertexArrays(1,&vao);
-        glfwTerminate();
+        glfwSetWindowShouldClose(window,GL_TRUE);
         return;
     }
 
@@ -211,17 +238,16 @@ void render_video(uint8_t* vbuffer, std::streamsize size, unsigned int framerate
         glGetShaderiv(fshader,GL_INFO_LOG_LENGTH,&logsize);
         std::vector<GLchar> errorLog(logsize);
         glGetShaderInfoLog(fshader,logsize,&logsize,&errorLog[0]);
+        std::cerr << "Compilation error: ";
         for (auto i:errorLog)
-            std::cerr << *i;
-        cerr << end;;
-        glfwSetWindowShouldClose(window,GL_TRUE);
-        ithread.join();
+            std::cerr << i;
+        std::cerr << std::endl;
         glDeleteShader(fshader);
         glDeleteShader(vshader);
         glDeleteBuffers(1,&ebo);
         glDeleteBuffers(1,&vbo);
         glDeleteVertexArrays(1,&vao);
-        glfwTerminate();
+        glfwSetWindowShouldClose(window,GL_TRUE);
         return;
     }
 
@@ -231,24 +257,23 @@ void render_video(uint8_t* vbuffer, std::streamsize size, unsigned int framerate
     glBindFragDataLocation(sprogram,0,"endcolor");
     glLinkProgram(sprogram);
     glUseProgram(sprogram);
-    glGetProgramiv(program,GL_LINK_STATUS,&success);
+    glGetProgramiv(sprogram,GL_LINK_STATUS,&success);
     if (success==GL_FALSE)
     {
         glGetProgramiv(sprogram,GL_INFO_LOG_LENGTH,&logsize);
         std::vector<GLchar> errorLog(logsize);
         glGetProgramInfoLog(sprogram,logsize,&logsize,&errorLog[0]);
+        std::cerr << "Linking error: ";
         for (auto i:errorLog)
-            std::cerr << *i;
-        cerr << end;;
-        glfwSetWindowShouldClose(window,GL_TRUE);
-        ithread.join();
+            std::cerr << i;
+        std::cerr << std::endl;
         glDeleteProgram(sprogram);
         glDeleteShader(fshader);
         glDeleteShader(vshader);
         glDeleteBuffers(1,&ebo);
         glDeleteBuffers(1,&vbo);
         glDeleteVertexArrays(1,&vao);
-        glfwTerminate();
+        glfwSetWindowShouldClose(window,GL_TRUE);
         return;
     }
 
@@ -299,18 +324,20 @@ void render_video(uint8_t* vbuffer, std::streamsize size, unsigned int framerate
     glClear(GL_COLOR_BUFFER_BIT);
 
     double start_frame = glfwGetTime();
-    double finished_frame;
-    double elapsed_time;
     yholder=0;
     uholder=yholder+(width*height);
     vholder=uholder+((width*height)/4);
-    //render_frame(window,yholder,uholder,vholder,width,height);
     glActiveTexture(GL_TEXTURE0);
-    glTexImage2D(GL_TEXTURE_2D,0,GL_RED,width,height,0,GL_RED,GL_UNSIGNED_BYTE,yholder);
+    glTexImage2D(GL_TEXTURE_2D,0,GL_R8,width,height,0,GL_RED,GL_UNSIGNED_BYTE,reinterpret_cast<void*>(yholder));
     glActiveTexture(GL_TEXTURE1);
-    glTexImage2D(GL_TEXTURE_2D,0,GL_RED,width/2,height/2,0,GL_RED,GL_UNSIGNED_BYTE,uholder);
+    glTexImage2D(GL_TEXTURE_2D,0,GL_R8,width/2,height/2,0,GL_RED,GL_UNSIGNED_BYTE,reinterpret_cast<void*>(uholder));
     glActiveTexture(GL_TEXTURE2);
-    glTexImage2D(GL_TEXTURE_2D,0,GL_RED,width/2,height/2,0,GL_RED,GL_UNSIGNED_BYTE,vholder);
+    glTexImage2D(GL_TEXTURE_2D,0,GL_R8,width/2,height/2,0,GL_RED,GL_UNSIGNED_BYTE,reinterpret_cast<void*>(vholder));
+    glFinish();
+    double finished_frame = glfwGetTime();
+    double elapsed_time = finished_frame-start_frame;
+    std::cout << "Time spent on first texture fetch: " << elapsed_time << std::endl;
+    start_frame = glfwGetTime();
     for (unsigned long i=1;i<frames;i++)
     {
         glDrawElements(GL_TRIANGLES,6,GL_UNSIGNED_INT,0);
@@ -319,16 +346,22 @@ void render_video(uint8_t* vbuffer, std::streamsize size, unsigned int framerate
         uholder=yholder+(width*height);
         vholder=uholder+((width*height)/4);
         glActiveTexture(GL_TEXTURE0);
-        glTexImage2D(GL_TEXTURE_2D,0,GL_RED,width,height,0,GL_RED,GL_UNSIGNED_BYTE,yholder);
+        glTexImage2D(GL_TEXTURE_2D,0,GL_R8,width,height,0,GL_RED,GL_UNSIGNED_BYTE,reinterpret_cast<void*>(yholder));
         glActiveTexture(GL_TEXTURE1);
-        glTexImage2D(GL_TEXTURE_2D,0,GL_RED,width/2,height/2,0,GL_RED,GL_UNSIGNED_BYTE,uholder);
+        glTexImage2D(GL_TEXTURE_2D,0,GL_R8,width/2,height/2,0,GL_RED,GL_UNSIGNED_BYTE,reinterpret_cast<void*>(uholder));
         glActiveTexture(GL_TEXTURE2);
-        glTexImage2D(GL_TEXTURE_2D,0,GL_RED,width/2,height/2,0,GL_RED,GL_UNSIGNED_BYTE,vholder);
+        glTexImage2D(GL_TEXTURE_2D,0,GL_R8,width/2,height/2,0,GL_RED,GL_UNSIGNED_BYTE,reinterpret_cast<void*>(vholder));
 
+        glFinish();
         finished_frame = glfwGetTime();
         elapsed_time = finished_frame-start_frame;
+        std::cout << "Time spent: " << elapsed_time << std::endl;
+        if (rfinish.load()==true)
+            break;
         if (elapsed_time<(1.0/framerate))
             std::this_thread::sleep_for(std::chrono::duration<double>((1.0/framerate)-elapsed_time));
+        if (rfinish.load()==true)
+            break;
 
         start_frame = glfwGetTime();
 
@@ -340,9 +373,6 @@ void render_video(uint8_t* vbuffer, std::streamsize size, unsigned int framerate
     if (elapsed_time<(1.0/framerate))
         std::this_thread::sleep_for(std::chrono::duration<double>((1.0/framerate)-elapsed_time));
 
-    glfwSetWindowShouldClose(window,GL_TRUE);
-    ithread.join();
-
     glDeleteTextures(3,textures);
     glDeleteProgram(sprogram);
     glDeleteShader(fshader);
@@ -351,19 +381,5 @@ void render_video(uint8_t* vbuffer, std::streamsize size, unsigned int framerate
     glDeleteBuffers(1,&ebo);
     glDeleteBuffers(1,&vbo);
     glDeleteVertexArrays(1,&vao);
-    glfwTerminate();
-}
-
-//void render_frame(GLFWwindow* window, uint8_t* ybuffer, uint8_t* ubuffer, uint8_t* vbuffer, unsigned int width, unsigned int height)
-//{
-//}
-
-void render_window_input(GLFWwindow* window)
-{
-    while (!glfwWindowShouldClose(window))
-    {
-        glfwWaitEvents();
-        if (glfwGetKey(window, GLFW_KEY_ESCAPE) == GLFW_PRESS)
-            break;
-    }
+    glfwSetWindowShouldClose(window,GL_TRUE);
 }

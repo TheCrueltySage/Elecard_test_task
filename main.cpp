@@ -51,6 +51,8 @@ int main(int argc, char *argv[])
 	
 	switch (c)
 	{
+	    case 0:
+		break;
 	    case 'i':
 		input_filename = optarg;
 		break;
@@ -106,7 +108,7 @@ int main(int argc, char *argv[])
 		std::cerr << "Error: must define video framerate to render" << std::endl;
 		return 0;
 	    }
-	    render_video(vbuffer,size,frames,width,height);
+	    init_window(vbuffer,size,frames,width,height);
 	}
 	check = memory_to_file(output_filename, reinterpret_cast<char*>(vbuffer), size);
 	if (!check)
@@ -232,7 +234,7 @@ void help()
         "-i | --input-video	The path to input YUV420 video" << std::endl <<
         "-o | --output-video	Where to put the resulting video" << std::endl <<
         "-a | --appended-image	The path to the RGM BMP image to append to video" << std::endl <<
-        "-r | --render        Open a separate window and render the resulting video to it" << std::endl <<
+        "--render		Open a separate window and render the resulting video to it" << std::endl <<
         "-F | --framerate	Framerate of input video in frames per second" << std::endl <<
         "-W | --width		Width of input video in pixels" << std::endl <<
         "-H | --height		Height of input video in pixels" << std::endl;
