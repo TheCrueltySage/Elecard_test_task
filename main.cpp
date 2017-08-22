@@ -18,29 +18,27 @@ int main(int argc, char *argv[])
     //Using CLI. See help() down below for details.
     int c;
     std::string input_filename, image_filename, output_filename = "";
-    //unsigned int width = 0, height = 0, frames = 0;
-    //static int render_flag = 0;
-    unsigned int width = 0, height = 0, threadnum = 0;
+    unsigned int width = 0, height = 0, frames = 0, threadnum = 0;
+    static int render_flag = 0;
     bool threadset = false;
 
     while (1)
     {
 	static struct option long_options[] =
 	{
-	    //{"render",		no_argument,		    &render_flag, 1},
+	    {"render",		no_argument,		    &render_flag, 1},
 	    {"input-video",	required_argument,	    0, 'i'},
 	    {"appended-image",	required_argument,	    0, 'a'},
 	    {"output",		required_argument,	    0, 'o'},
 	    {"width",		required_argument,	    0, 'W'},
 	    {"height",		required_argument,	    0, 'H'},
-	    //{"framerate",	required_argument,	    0, 'F'},
+	    {"framerate",	required_argument,	    0, 'F'},
 	    {"threads",		required_argument,	    0, 't'},
 	    {"help",		no_argument,		    0, 'h'}
 	};
 
 	int index = 0;
-	//c = getopt_long (argc, argv, "i:a:o:W:H:F:h", long_options, &index);
-	c = getopt_long (argc, argv, "i:a:o:W:H:t:h", long_options, &index);
+	c = getopt_long (argc, argv, "i:a:o:W:H:F:t:h", long_options, &index);
 
 	if (c==-1)
 	{
@@ -55,6 +53,8 @@ int main(int argc, char *argv[])
 	
 	switch (c)
 	{
+	    case 0:
+		break;
 	    case 'i':
 		input_filename = optarg;
 		break;
@@ -73,6 +73,9 @@ int main(int argc, char *argv[])
 	    case 't':
 		threadnum = atoi(optarg);
 		threadset = true;
+		break;
+	    case 'F':
+		frames = atoi(optarg);
 		break;
 	    case 'h':
 	    case '?':
@@ -106,16 +109,15 @@ int main(int argc, char *argv[])
 	{
 	    img_overlay(vbuffer, image_filename, width, height, size, threadnum);
 	}
-	//Remains here for possible second bonus task.
-	//if (render_flag)
-	//{
-	//    if (frames==0)
-	//    {
-	//	std::cerr << "Error: must define video framerate to render" << std::endl;
-	//	return 0;
-	//    }
-	//    //will do later
-	//}
+	if (render_flag)
+	{
+	    if (frames==0)
+	    {
+		std::cerr << "Error: must define video framerate to render" << std::endl;
+		return 0;
+	    }
+	    render_video(vbuffer,size,frames,width,height);
+	}
 	check = memory_to_file(output_filename, reinterpret_cast<char*>(vbuffer), size);
 	if (!check)
 	{
@@ -216,8 +218,8 @@ void help()
         "-i | --input-video	The path to input YUV420 video" << std::endl <<
         "-o | --output-video	Where to put the resulting video" << std::endl <<
         "-a | --appended-image	The path to the RGM BMP image to append to video" << std::endl <<
-        //"-r | --render        Open a separate window and render the resulting video to it" << std::endl <<
-        //"-F | --framerate	Framerate of input video in frames per second" << std::endl <<
+        "--render		Open a separate window and render the resulting video to it" << std::endl <<
+        "-F | --framerate	Framerate of input video in frames per second" << std::endl <<
         "-W | --width		Width of input video in pixels" << std::endl <<
         "-H | --height		Height of input video in pixels" << std::endl <<
         "-t | --threads		Force certain amount of threads used (default is dependent on your hardware configuration)" << std::endl;
