@@ -1,6 +1,5 @@
 #include <iostream>
 #include <string>
-#include <getopt.h>
 #include <ios>
 #include <cstdlib>
 #include <cmath>
@@ -9,6 +8,8 @@
 #include "bmp.h"
 #include "convert.h"
 #include "render.h"
+
+#include "cmake_config.h"
 
 void img_overlay(uint8_t*, std::string, unsigned int, unsigned int, std::streamsize, unsigned int);
 void help();
