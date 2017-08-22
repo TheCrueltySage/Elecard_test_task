@@ -977,6 +977,24 @@ typedef unsigned int GLhandleARB;
 		#define GL_UNSIGNED_INT_SAMPLER_2D_MULTISAMPLE_ARRAY 0x910D
 		#define GL_WAIT_FAILED                   0x911D
 		
+		/* Version: 3.3*/
+		#define GL_ANY_SAMPLES_PASSED            0x8C2F
+		#define GL_INT_2_10_10_10_REV            0x8D9F
+		#define GL_MAX_DUAL_SOURCE_DRAW_BUFFERS  0x88FC
+		#define GL_ONE_MINUS_SRC1_ALPHA          0x88FB
+		#define GL_ONE_MINUS_SRC1_COLOR          0x88FA
+		#define GL_RGB10_A2UI                    0x906F
+		#define GL_SAMPLER_BINDING               0x8919
+		#define GL_SRC1_COLOR                    0x88F9
+		#define GL_TEXTURE_SWIZZLE_A             0x8E45
+		#define GL_TEXTURE_SWIZZLE_B             0x8E44
+		#define GL_TEXTURE_SWIZZLE_G             0x8E43
+		#define GL_TEXTURE_SWIZZLE_R             0x8E42
+		#define GL_TEXTURE_SWIZZLE_RGBA          0x8E46
+		#define GL_TIMESTAMP                     0x8E28
+		#define GL_TIME_ELAPSED                  0x88BF
+		#define GL_VERTEX_ATTRIB_ARRAY_DIVISOR   0x88FE
+		
 		
 		/* Extension: 1.0*/
 		extern void (CODEGEN_FUNCPTR *_ptrc_glBlendFunc)(GLenum sfactor, GLenum dfactor);
@@ -1631,6 +1649,64 @@ typedef unsigned int GLhandleARB;
 		#define glTexImage3DMultisample _ptrc_glTexImage3DMultisample
 		extern void (CODEGEN_FUNCPTR *_ptrc_glWaitSync)(GLsync sync, GLbitfield flags, GLuint64 timeout);
 		#define glWaitSync _ptrc_glWaitSync
+		
+		/* Extension: 3.3*/
+		extern void (CODEGEN_FUNCPTR *_ptrc_glBindFragDataLocationIndexed)(GLuint program, GLuint colorNumber, GLuint index, const GLchar * name);
+		#define glBindFragDataLocationIndexed _ptrc_glBindFragDataLocationIndexed
+		extern void (CODEGEN_FUNCPTR *_ptrc_glBindSampler)(GLuint unit, GLuint sampler);
+		#define glBindSampler _ptrc_glBindSampler
+		extern void (CODEGEN_FUNCPTR *_ptrc_glDeleteSamplers)(GLsizei count, const GLuint * samplers);
+		#define glDeleteSamplers _ptrc_glDeleteSamplers
+		extern void (CODEGEN_FUNCPTR *_ptrc_glGenSamplers)(GLsizei count, GLuint * samplers);
+		#define glGenSamplers _ptrc_glGenSamplers
+		extern GLint (CODEGEN_FUNCPTR *_ptrc_glGetFragDataIndex)(GLuint program, const GLchar * name);
+		#define glGetFragDataIndex _ptrc_glGetFragDataIndex
+		extern void (CODEGEN_FUNCPTR *_ptrc_glGetQueryObjecti64v)(GLuint id, GLenum pname, GLint64 * params);
+		#define glGetQueryObjecti64v _ptrc_glGetQueryObjecti64v
+		extern void (CODEGEN_FUNCPTR *_ptrc_glGetQueryObjectui64v)(GLuint id, GLenum pname, GLuint64 * params);
+		#define glGetQueryObjectui64v _ptrc_glGetQueryObjectui64v
+		extern void (CODEGEN_FUNCPTR *_ptrc_glGetSamplerParameterIiv)(GLuint sampler, GLenum pname, GLint * params);
+		#define glGetSamplerParameterIiv _ptrc_glGetSamplerParameterIiv
+		extern void (CODEGEN_FUNCPTR *_ptrc_glGetSamplerParameterIuiv)(GLuint sampler, GLenum pname, GLuint * params);
+		#define glGetSamplerParameterIuiv _ptrc_glGetSamplerParameterIuiv
+		extern void (CODEGEN_FUNCPTR *_ptrc_glGetSamplerParameterfv)(GLuint sampler, GLenum pname, GLfloat * params);
+		#define glGetSamplerParameterfv _ptrc_glGetSamplerParameterfv
+		extern void (CODEGEN_FUNCPTR *_ptrc_glGetSamplerParameteriv)(GLuint sampler, GLenum pname, GLint * params);
+		#define glGetSamplerParameteriv _ptrc_glGetSamplerParameteriv
+		extern GLboolean (CODEGEN_FUNCPTR *_ptrc_glIsSampler)(GLuint sampler);
+		#define glIsSampler _ptrc_glIsSampler
+		extern void (CODEGEN_FUNCPTR *_ptrc_glQueryCounter)(GLuint id, GLenum target);
+		#define glQueryCounter _ptrc_glQueryCounter
+		extern void (CODEGEN_FUNCPTR *_ptrc_glSamplerParameterIiv)(GLuint sampler, GLenum pname, const GLint * param);
+		#define glSamplerParameterIiv _ptrc_glSamplerParameterIiv
+		extern void (CODEGEN_FUNCPTR *_ptrc_glSamplerParameterIuiv)(GLuint sampler, GLenum pname, const GLuint * param);
+		#define glSamplerParameterIuiv _ptrc_glSamplerParameterIuiv
+		extern void (CODEGEN_FUNCPTR *_ptrc_glSamplerParameterf)(GLuint sampler, GLenum pname, GLfloat param);
+		#define glSamplerParameterf _ptrc_glSamplerParameterf
+		extern void (CODEGEN_FUNCPTR *_ptrc_glSamplerParameterfv)(GLuint sampler, GLenum pname, const GLfloat * param);
+		#define glSamplerParameterfv _ptrc_glSamplerParameterfv
+		extern void (CODEGEN_FUNCPTR *_ptrc_glSamplerParameteri)(GLuint sampler, GLenum pname, GLint param);
+		#define glSamplerParameteri _ptrc_glSamplerParameteri
+		extern void (CODEGEN_FUNCPTR *_ptrc_glSamplerParameteriv)(GLuint sampler, GLenum pname, const GLint * param);
+		#define glSamplerParameteriv _ptrc_glSamplerParameteriv
+		extern void (CODEGEN_FUNCPTR *_ptrc_glVertexAttribDivisor)(GLuint index, GLuint divisor);
+		#define glVertexAttribDivisor _ptrc_glVertexAttribDivisor
+		extern void (CODEGEN_FUNCPTR *_ptrc_glVertexAttribP1ui)(GLuint index, GLenum type, GLboolean normalized, GLuint value);
+		#define glVertexAttribP1ui _ptrc_glVertexAttribP1ui
+		extern void (CODEGEN_FUNCPTR *_ptrc_glVertexAttribP1uiv)(GLuint index, GLenum type, GLboolean normalized, const GLuint * value);
+		#define glVertexAttribP1uiv _ptrc_glVertexAttribP1uiv
+		extern void (CODEGEN_FUNCPTR *_ptrc_glVertexAttribP2ui)(GLuint index, GLenum type, GLboolean normalized, GLuint value);
+		#define glVertexAttribP2ui _ptrc_glVertexAttribP2ui
+		extern void (CODEGEN_FUNCPTR *_ptrc_glVertexAttribP2uiv)(GLuint index, GLenum type, GLboolean normalized, const GLuint * value);
+		#define glVertexAttribP2uiv _ptrc_glVertexAttribP2uiv
+		extern void (CODEGEN_FUNCPTR *_ptrc_glVertexAttribP3ui)(GLuint index, GLenum type, GLboolean normalized, GLuint value);
+		#define glVertexAttribP3ui _ptrc_glVertexAttribP3ui
+		extern void (CODEGEN_FUNCPTR *_ptrc_glVertexAttribP3uiv)(GLuint index, GLenum type, GLboolean normalized, const GLuint * value);
+		#define glVertexAttribP3uiv _ptrc_glVertexAttribP3uiv
+		extern void (CODEGEN_FUNCPTR *_ptrc_glVertexAttribP4ui)(GLuint index, GLenum type, GLboolean normalized, GLuint value);
+		#define glVertexAttribP4ui _ptrc_glVertexAttribP4ui
+		extern void (CODEGEN_FUNCPTR *_ptrc_glVertexAttribP4uiv)(GLuint index, GLenum type, GLboolean normalized, const GLuint * value);
+		#define glVertexAttribP4uiv _ptrc_glVertexAttribP4uiv
 		
 		void ogl_CheckExtensions();
 		

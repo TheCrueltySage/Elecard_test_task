@@ -108,7 +108,7 @@ int main(int argc, char *argv[])
 		std::cerr << "Error: must define video framerate to render" << std::endl;
 		return 0;
 	    }
-	    init_window(vbuffer,size,frames,width,height);
+	    render_video(vbuffer,size,frames,width,height);
 	}
 	check = memory_to_file(output_filename, reinterpret_cast<char*>(vbuffer), size);
 	if (!check)
