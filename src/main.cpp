@@ -84,7 +84,7 @@ int main(int argc, char *argv[])
 		return 0;
 	    default:
 		help();
-		abort();
+		return 1;
 	}
     }
 
@@ -96,7 +96,7 @@ int main(int argc, char *argv[])
 	if (size == -1)
 	{
 	    std::cerr << "Error opening the original video. Aborting." << std::endl;
-	    return 0;
+	    return 1;
 	}
 	uint8_t *vbuffer = new uint8_t[size];
 	bool check;
@@ -104,7 +104,7 @@ int main(int argc, char *argv[])
 	if (!check)
 	{
 	    std::cerr << "Error opening the original video. Aborting." << std::endl;
-	    return 0;
+	    return 1;
 	}
 	if (image_filename != "")
 	{
@@ -115,7 +115,7 @@ int main(int argc, char *argv[])
 	    if (frames==0)
 	    {
 		std::cerr << "Error: must define video framerate to render" << std::endl;
-		return 0;
+		return 1;
 	    }
 	    render_video(vbuffer,size,frames,width,height);
 	}
@@ -130,7 +130,7 @@ int main(int argc, char *argv[])
     {
 	std::cerr << "Need at least two arguments: input video and output file" << std::endl;
 	help();
-	return 0;
+	return 1;
     }
 }
 

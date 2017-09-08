@@ -59,7 +59,7 @@ int main()
 
     std::cout << "Naive algorithm worked in " << execution_time_simple.count() << " microseconds." << std::endl;
     std::cout << "Vector algorithm worked in " << execution_time_vector.count() << " microseconds." << std::endl;
-    std::cout << "Speedup is " << static_cast<int>(execution_time_simple.count()/execution_time_vector.count()) << "x." << std::endl;
+    std::cout << "Speedup is " << execution_time_simple.count()/execution_time_vector.count() << "x." << std::endl;
 
     //Deallocating memory that was allocated in this function
     delete [] i_ybuffer2;

@@ -1,0 +1,3 @@
+[submodule "src/getopt_extern"]
+	path = src/getopt_extern
+	url = https://github.com/kevinoid/ultragetopt

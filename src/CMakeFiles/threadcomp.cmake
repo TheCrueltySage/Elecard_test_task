@@ -1,0 +1,16 @@
+execute_process(COMMAND ${TEST_PROG} -i test.yuv -a test.bmp -o test_nt.yuv -W 352 -H 288 -t 1 RESULT_VARIABLE HAD_ERROR)
+if (HAD_ERROR)
+    message(FATAL_ERROR "Test failed - couldn't run executable without threads.")
+endif(HAD_ERROR)
+
+execute_process(COMMAND ${TEST_PROG} -i test.yuv -a test.bmp -o test_t.yuv -W 352 -H 288 -t 8 RESULT_VARIABLE HAD_ERROR)
+if (HAD_ERROR)
+    message(FATAL_ERROR "Test failed - couldn't run executable with threads.")
+    file(REMOVE test_nt.yuv)
+endif(HAD_ERROR)
+
+execute_process(COMMAND ${CMAKE_COMMAND} -E compare_files test_nt.yuv test_t.yuv RESULT_VARIABLE HAD_ERROR)
+file(REMOVE test_nt.yuv test_t.yuv)
+if (HAD_ERROR)
+    message(FATAL_ERROR "Test failed - output from threaded and non-threaded algorithms is not identical")
+endif(HAD_ERROR)
